@@ -233,8 +233,6 @@ struct jq_handler {
     jq_size subst_pos;                  /* char position in buf */
 #endif
     jq_callback callback;               /* callback function */
-    enum jq_lexer_state lexer_state;    /* lexer state */
-                                        /* with null terminator */
     enum jq_error error;                /* error code */
 };
 
@@ -434,7 +432,6 @@ jq_init(struct jq_handler *h) {
     h->subst_pos = 0; /* subst_pos init doesn't matter, only subst_char is checked */
 #endif
     h->callback = JQ_NULL;
-    h->lexer_state = JQ_L_NORMAL;
     h->error = JQ_ERR_OK;
 
     return JQ_TRUE;
@@ -521,15 +518,16 @@ jq_get_token(struct jq_handler *h) {
     static const char True[] = "true";
     static const char False[] = "false";
 
+    enum jq_lexer_state lexer_state = JQ_L_NORMAL;
+
     for (;;) {
         int c = jq_lexer_getchar(h);
         if (c == JQ_T_NEED_MORE) return c;
 
-        switch (h->lexer_state) {
+        switch (lexer_state) {
         case JQ_L_STRING:
             switch (c) {
             case '"':
-                h->lexer_state = JQ_L_NORMAL;
 #ifdef JQ_WITH_VLEN
                 h->vlen = h->i - 1 - (h->val - h->buf);
 #endif
@@ -580,7 +578,6 @@ jq_get_token(struct jq_handler *h) {
                 }
             } else {
                 jq_lexer_unget(h);
-                h->lexer_state = JQ_L_NORMAL;
                 return JQ_T_NULL;
             }
 
@@ -595,7 +592,6 @@ jq_get_token(struct jq_handler *h) {
                 }
             } else {
                 jq_lexer_unget(h);
-                h->lexer_state = JQ_L_NORMAL;
                 return JQ_T_TRUE;
             }
 
@@ -610,7 +606,6 @@ jq_get_token(struct jq_handler *h) {
                 }
             } else {
                 jq_lexer_unget(h);
-                h->lexer_state = JQ_L_NORMAL;
                 return JQ_T_FALSE;
             }
 
@@ -618,14 +613,14 @@ jq_get_token(struct jq_handler *h) {
             if (jq_iswc(c)) continue;
             if (jq_isnum(c)) {
                 jq_lexer_unget(h);
-                h->lexer_state = JQ_L_NUM_BEGIN;
+                lexer_state = JQ_L_NUM_BEGIN;
                 continue;
             }
 
             switch (c) {
             case '"':
                 h->val = &h->buf[h->i];
-                h->lexer_state = JQ_L_STRING;
+                lexer_state = JQ_L_STRING;
                 continue;
 
             case '{': case '}': case '[': case ']': case ':': case ',':
@@ -633,17 +628,17 @@ jq_get_token(struct jq_handler *h) {
 
             case 'n':
                 ++nft_cnt;
-                h->lexer_state = JQ_L_NULL;
+                lexer_state = JQ_L_NULL;
                 continue;
 
             case 't':
                 ++nft_cnt;
-                h->lexer_state = JQ_L_TRUE;
+                lexer_state = JQ_L_TRUE;
                 continue;
 
             case 'f':
                 ++nft_cnt;
-                h->lexer_state = JQ_L_FALSE;
+                lexer_state = JQ_L_FALSE;
                 continue;
 
             default:
@@ -656,15 +651,15 @@ jq_get_token(struct jq_handler *h) {
                 h->val = &h->buf[h->i - 1];
 
                 switch (c) {
-                case '-':   h->lexer_state = JQ_L_NUM_INT1_9; break;
-                case '0':   h->lexer_state = JQ_L_NUM_POINT; break;
-                default:    jq_lexer_unget(h); h->lexer_state = JQ_L_NUM_INT1_9; break;
+                case '-':   lexer_state = JQ_L_NUM_INT1_9; break;
+                case '0':   lexer_state = JQ_L_NUM_POINT; break;
+                default:    jq_lexer_unget(h); lexer_state = JQ_L_NUM_INT1_9; break;
                 }
             continue;
 
         case JQ_L_NUM_POINT:
             if (c == '.') {
-                h->lexer_state = JQ_L_NUM_FRACTION;
+                lexer_state = JQ_L_NUM_FRACTION;
             } else {
                 return jq_finish_number(h);
             }
@@ -673,7 +668,7 @@ jq_get_token(struct jq_handler *h) {
         case JQ_L_NUM_INT0_9:
             if (JQ_STRCHR("0123456789", c) == JQ_NULL) {
                 if (c == '.') {
-                    h->lexer_state = JQ_L_NUM_FRACTION;
+                    lexer_state = JQ_L_NUM_FRACTION;
                 } else {
                     return jq_finish_number(h);
                 }
@@ -682,10 +677,10 @@ jq_get_token(struct jq_handler *h) {
 
         case JQ_L_NUM_INT1_9:
             if (jq_isint(c)) {
-                h->lexer_state = JQ_L_NUM_INT0_9;
+                lexer_state = JQ_L_NUM_INT0_9;
             } else {
                 if (c == '.') {
-                    h->lexer_state = JQ_L_NUM_FRACTION;
+                    lexer_state = JQ_L_NUM_FRACTION;
                 } else {
                     return jq_finish_number(h);
                 }
@@ -695,7 +690,7 @@ jq_get_token(struct jq_handler *h) {
         case JQ_L_NUM_FRACTION:
             if (JQ_STRCHR("0123456789", c) == JQ_NULL) {
                 if (JQ_STRCHR("Ee", c) != JQ_NULL) {
-                    h->lexer_state = JQ_L_NUM_EXPO_PLUS_MINUS;
+                    lexer_state = JQ_L_NUM_EXPO_PLUS_MINUS;
                 } else {
                     return jq_finish_number(h);
                 }
@@ -704,9 +699,9 @@ jq_get_token(struct jq_handler *h) {
 
         case JQ_L_NUM_EXPO_PLUS_MINUS:
             if (JQ_STRCHR("+-", c) != JQ_NULL) {
-                h->lexer_state = JQ_L_NUM_EXPO_INT1;
+                lexer_state = JQ_L_NUM_EXPO_INT1;
             } else if (JQ_STRCHR("0123456789", c) != JQ_NULL) {
-                h->lexer_state = JQ_L_NUM_EXPO_INT;
+                lexer_state = JQ_L_NUM_EXPO_INT;
             } else {
                 h->error = JQ_ERR_LEXER_EXPONENT_ERROR;
                 return JQ_T_ERROR; /* Nothing found after exponent E(e) */
@@ -718,7 +713,7 @@ jq_get_token(struct jq_handler *h) {
                 h->error = JQ_ERR_LEXER_EXPONENT_ERROR;
                 return JQ_T_ERROR; /* Nothing found after exponent E(e)+- */
             } else {
-                h->lexer_state = JQ_L_NUM_EXPO_INT;
+                lexer_state = JQ_L_NUM_EXPO_INT;
             }
             continue;
 
@@ -743,7 +738,6 @@ jq_finish_number(struct jq_handler *h) {
     h->subst_char = h->buf[h->subst_pos];
     h->buf[h->subst_pos] = '\0'; /* and setting it to null terminator, then we should restore it */
 #endif
-    h->lexer_state = JQ_L_NORMAL;
 
     return JQ_T_NUMBER;
 }
