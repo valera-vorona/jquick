@@ -175,6 +175,9 @@ enum jq_event_type {
 enum jq_lexer_state {
     JQ_L_NORMAL                     = 0,
     JQ_L_STRING,
+    JQ_L_NULL,
+    JQ_L_TRUE,
+    JQ_L_FALSE,
     JQ_L_NUM_BEGIN,
     JQ_L_NUM_POINT,
     JQ_L_NUM_INT0_9,
@@ -513,6 +516,11 @@ jq_lexer_unget(struct jq_handler *h) {
 
 JQ_API enum jq_token_type
 jq_get_token(struct jq_handler *h) {
+    int nft_cnt = 0;
+    static const char Null[] = "null";
+    static const char True[] = "true";
+    static const char False[] = "false";
+
     for (;;) {
         int c = jq_lexer_getchar(h);
         if (c == JQ_T_NEED_MORE) return c;
@@ -561,6 +569,39 @@ jq_get_token(struct jq_handler *h) {
             }
             break;
 
+        case JQ_L_NULL:
+            if (Null[nft_cnt]) {
+                if (c == Null[nft_cnt]) {
+                    ++nft_cnt;
+                    continue;
+                } else {
+                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
+                    return JQ_T_ERROR;
+                }
+            } else return JQ_T_NULL;
+
+        case JQ_L_TRUE:
+            if (True[nft_cnt]) {
+                if (c == True[nft_cnt]) {
+                    ++nft_cnt;
+                    continue;
+                } else {
+                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
+                    return JQ_T_ERROR;
+                }
+            } else return JQ_T_TRUE;
+
+        case JQ_L_FALSE:
+            if (False[nft_cnt]) {
+                if (c == False[nft_cnt]) {
+                    ++nft_cnt;
+                    continue;
+                } else {
+                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
+                    return JQ_T_ERROR;
+                }
+            } else return JQ_T_FALSE;
+
         case JQ_L_NORMAL:
             if (jq_iswc(c)) continue;
             if (jq_isnum(c)) {
@@ -578,36 +619,24 @@ jq_get_token(struct jq_handler *h) {
             case '{': case '}': case '[': case ']': case ':': case ',':
                 return c;
 
-            default: {
-                    jq_size bleft;
+            case 'n':
+                ++nft_cnt;
+                h->lexer_state = JQ_L_NULL;
+                continue;
 
-                    jq_lexer_unget(h);
-                    bleft = h->buf_size - h->i;
-                    if (bleft > 4) {
-                        if (!JQ_MEMCMP(&h->buf[h->i], "false", 5)) {
-                            h->i += 5; /* TODO: change location vars */
-                            return JQ_T_FALSE;
-                        }
-                    }
+            case 't':
+                ++nft_cnt;
+                h->lexer_state = JQ_L_TRUE;
+                continue;
 
-                    if (bleft > 3) {
-                        if (!JQ_MEMCMP(&h->buf[h->i], "null", 4)) {
-                            h->i += 4; /* TODO: change location vars */
-                            return JQ_T_NULL;
-                        } else if (!JQ_MEMCMP(&h->buf[h->i], "true", 4)) {
-                            h->i += 4; /* TODO: change location vars */
-                            return JQ_T_TRUE;
-                        }
-                    }
-                    if (!JQ_MEMCMP(&h->buf[h->i], "false", bleft) ||
-                        !JQ_MEMCMP(&h->buf[h->i], "null", bleft) ||
-                        !JQ_MEMCMP(&h->buf[h->i], "true", bleft)) {
-                        return JQ_T_NEED_MORE;
-                    } 
+            case 'f':
+                ++nft_cnt;
+                h->lexer_state = JQ_L_FALSE;
+                continue;
 
-                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
-                    return JQ_T_ERROR;
-                }
+            default:
+                h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
+                return JQ_T_ERROR;
             }
             break;
 
