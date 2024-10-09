@@ -382,16 +382,6 @@ JQ_API const char *jq_errstr(enum jq_error error);
 
 #define JQ_NULL 0
 
-JQ_INLINE jq_char *
-JQ_STRCHR(jq_char *s, jq_char c) {
-    while (*s) {
-        if (*s == c) return s;
-        ++s;
-    }
-
-    return JQ_NULL;
-}
-
 JQ_API jq_bool
 jq_init(struct jq_handler *h) {
     h->buf = JQ_NULL;
@@ -447,6 +437,16 @@ JQ_INLINE enum jq_token_type jq_finish_number(struct jq_handler *h);
 JQ_INLINE jq_bool
 jq_ishex(jq_char c) {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
+
+JQ_INLINE jq_char *
+JQ_STRCHR(jq_char *s, jq_char c) {
+    while (*s) {
+        if (*s == c) return s;
+        ++s;
+    }
+
+    return JQ_NULL;
 }
 
 JQ_API int
