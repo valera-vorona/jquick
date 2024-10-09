@@ -18,6 +18,7 @@
 
 # Generated files
 stddoc
+bin/
 
 #Backup files
 *.bak
