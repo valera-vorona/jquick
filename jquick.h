@@ -380,30 +380,7 @@ JQ_API const char *jq_errstr(enum jq_error error);
 
 #ifdef JQ_WITH_IMPLEMENTATION
 
-#ifdef JQ_WITH_STD_STRING
-  #include <string.h>
-
-  #define JQ_NULL    NULL
-  #define JQ_MEMCMP(d, s, n)  memcmp(d, s, n)
-  #define JQ_STRCHR(s, c)     strchr(s, c)
-#elif defined(JQ_WITH_CUSTOM_STRING)
-  /* you should define the following macros yourself: */
-  #define JQ_NULL
-  #define JQ_MEMCMP(d, s, n)
-  #define JQ_STRCHR(s, c)
-#else
-  #define JQ_WITH_BUILTIN_STRING
-  /* use builtin string functions */
-  #define JQ_NULL 0
-
-JQ_INLINE int
-JQ_MEMCMP(const void *p1, const void *p2, size_t n) {
-    while (n--) {
-        if (*(jq_char *)(p1) != *(jq_char *)p2) return (jq_char *)p1 - (jq_char *)p2;
-    }
-
-    return 0;
-}
+#define JQ_NULL 0
 
 JQ_INLINE jq_char *
 JQ_STRCHR(jq_char *s, jq_char c) {
@@ -414,8 +391,6 @@ JQ_STRCHR(jq_char *s, jq_char c) {
 
     return JQ_NULL;
 }
-
-#endif /* JQ_WITH_STD_STRING */
 
 JQ_API jq_bool
 jq_init(struct jq_handler *h) {
