@@ -70,6 +70,18 @@ TEST_CASE(test_grammar_error)
     TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_PARSER_UNEXPECTED_TOKEN);
 TEST_CASE_END()
 
+TEST_CASE(test_webapp)
+    struct jq_handler h;
+    jq_bool r;
+    size_t sz;
+    char *json = read_json("../assets/web-app.json", &sz);
+    if (!json) return 0;
+    jq_init(&h);
+    r = jq_parse_buf(&h, json, sz);
+    free(json);
+    TEST_REQUIRE(r == JQ_TRUE);
+TEST_CASE_END()
+ 
 /* test main function */
 
 TEST(jquick)
@@ -82,6 +94,7 @@ TEST_SUITE(suite_jquick)
     TEST_CASE_RUN(test_correct);
     TEST_CASE_RUN(test_lexical_error);
     TEST_CASE_RUN(test_grammar_error);
+    TEST_CASE_RUN(test_webapp);
 TEST_SUITE_END()
 
 int main() {
