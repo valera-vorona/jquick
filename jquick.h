@@ -102,12 +102,14 @@ enum jq_bool {
     JQ_TRUE                         = 1
 };
 
-/*///
+/*//
 /// #### enum jq_error
 /// ~~~
 /// enum jq_error {
-///     JQ_ERR_OK                       = 0,
+///     JQ_ERR_OK                           = 0,
 ///     JQ_ERR_LEXER_UNKNOWN_TOKEN,
+///     JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL,
+///     JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL,
 ///     JQ_ERR_LEXER_EXPONENT_ERROR,
 ///     JQ_ERR_PARSER_UNEXPECTED_TOKEN,
 ///     JQ_ERR_PARSER_NEED_MORE
@@ -115,28 +117,30 @@ enum jq_bool {
 /// ~~~
 */
 enum jq_error {
-    JQ_ERR_OK                       = 0,
+    JQ_ERR_OK                           = 0,
     JQ_ERR_LEXER_UNKNOWN_TOKEN,
+    JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL,
+    JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL,
     JQ_ERR_LEXER_EXPONENT_ERROR,
     JQ_ERR_PARSER_UNEXPECTED_TOKEN,
     JQ_ERR_PARSER_NEED_MORE
 };
 
 enum jq_token_type {
-    JQ_T_UNDEFINED                  = -1,   /* Used at the beginning of scan */
-    JQ_T_ERROR                      = 0,
-    JQ_T_NEED_MORE                  = 256,
-    JQ_T_NULL                       = 257,
-    JQ_T_TRUE                       = 258,
-    JQ_T_FALSE                      = 259,
-    JQ_T_STRING                     = 260,
-    JQ_T_NUMBER                     = 261,
-    JQ_T_LEFT_BRACE                 = '{',
-    JQ_T_RIGHT_BRACE                = '}',
-    JQ_T_LEFT_BRACKET               = '[',
-    JQ_T_RIGHT_BRACKET              = ']',
-    JQ_T_COLON                      = ':',
-    JQ_T_COMMA                      = ','
+    JQ_T_UNDEFINED                      = -1,   /* Used at the beginning of scan */
+    JQ_T_ERROR                          = 0,
+    JQ_T_NEED_MORE                      = 256,
+    JQ_T_NULL                           = 257,
+    JQ_T_TRUE                           = 258,
+    JQ_T_FALSE                          = 259,
+    JQ_T_STRING                         = 260,
+    JQ_T_NUMBER                         = 261,
+    JQ_T_LEFT_BRACE                     = '{',
+    JQ_T_RIGHT_BRACE                    = '}',
+    JQ_T_LEFT_BRACKET                   = '[',
+    JQ_T_RIGHT_BRACKET                  = ']',
+    JQ_T_COLON                          = ':',
+    JQ_T_COMMA                          = ','
 };
 
 /*///
@@ -160,21 +164,23 @@ enum jq_token_type {
 /* Except JQ_E_OBJECT_KEY it simply repeats some of jq_token_type constants */
 /* IMPORTANT: except JQ_E_OBJECT_KEY the values must match those of jq_token_type! */
 enum jq_event_type {
-    JQ_E_NULL                       = JQ_T_NULL,
-    JQ_E_TRUE                       = JQ_T_TRUE,
-    JQ_E_FALSE                      = JQ_T_FALSE,
-    JQ_E_STRING                     = JQ_T_STRING,
-    JQ_E_NUMBER                     = JQ_T_NUMBER,
-    JQ_E_OBJECT_BEGIN               = '{',
-    JQ_E_OBJECT_END                 = '}',
-    JQ_E_ARRAY_BEGIN                = '[',
-    JQ_E_ARRAY_END                  = ']',
-    JQ_E_OBJECT_KEY                 = 255 /* it must be unique */
+    JQ_E_NULL                           = JQ_T_NULL,
+    JQ_E_TRUE                           = JQ_T_TRUE,
+    JQ_E_FALSE                          = JQ_T_FALSE,
+    JQ_E_STRING                         = JQ_T_STRING,
+    JQ_E_NUMBER                         = JQ_T_NUMBER,
+    JQ_E_OBJECT_BEGIN                   = '{',
+    JQ_E_OBJECT_END                     = '}',
+    JQ_E_ARRAY_BEGIN                    = '[',
+    JQ_E_ARRAY_END                      = ']',
+    JQ_E_OBJECT_KEY                     = 255 /* it must be unique */
 };
 
 enum jq_lexer_state {
-    JQ_L_NORMAL                     = 0,
+    JQ_L_NORMAL                         = 0,
     JQ_L_STRING,
+    JQ_L_ESCAPE,
+    JQ_L_UNICODE,
     JQ_L_NULL,
     JQ_L_TRUE,
     JQ_L_FALSE,
@@ -189,7 +195,7 @@ enum jq_lexer_state {
 };
 
 enum jq_parser_state {
-    JQ_S_UNDEFINED                  = 0,
+    JQ_S_UNDEFINED                      = 0,
     JQ_S_OBJECT,
     JQ_S_ARRAY,
     JQ_S_COMPLETE
@@ -513,7 +519,7 @@ jq_lexer_unget(struct jq_handler *h) {
 
 JQ_API enum jq_token_type
 jq_get_token(struct jq_handler *h) {
-    int nft_cnt = 0;
+    int nft_cnt; /* current symbol inside null, true, false or unicode (\uxxxx) */
     static const char Null[] = "null";
     static const char True[] = "true";
     static const char False[] = "false";
@@ -541,29 +547,32 @@ jq_get_token(struct jq_handler *h) {
                 return JQ_T_STRING;
 
             case '\\':
-                c = jq_lexer_getchar(h);
-                if (c == JQ_T_NEED_MORE) return c;
-                if (!jq_isesc(c)) {
-                    if (c == 'u') {
-                        jq_size bleft = h->buf_size - h->i;
-                        if (bleft < 4) {
-                            while (bleft--) {
-                                if (!jq_ishex(jq_lexer_getchar(h))) return JQ_T_ERROR;
-                            }
+                lexer_state = JQ_L_ESCAPE;
+                continue;
+            }
+            break;
 
-                            return JQ_T_NEED_MORE;
-                        } else if (!(
-                            jq_ishex(jq_lexer_getchar(h)) &&
-                            jq_ishex(jq_lexer_getchar(h)) &&
-                            jq_ishex(jq_lexer_getchar(h)) &&
-                            jq_ishex(jq_lexer_getchar(h)))) {
-                                return JQ_T_ERROR;
-                        }
-                    } else {
-                        return JQ_T_ERROR; /* Unknown esape symbol */
-                    }
+        case JQ_L_ESCAPE:
+            if (c == 'u') {
+                nft_cnt = 0;
+                lexer_state = JQ_L_UNICODE;
+            } else if (jq_isesc(c)) {
+                lexer_state = JQ_L_STRING;
+            } else {
+                h->error = JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL;
+                return JQ_T_ERROR;
+            }
+            break;
+
+        case JQ_L_UNICODE:
+            if (nft_cnt++ < 4) {
+                if (!jq_ishex(c)) {
+                    h->error = JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL;
+                    return JQ_T_ERROR;
                 }
-                break;
+            } else {
+                jq_lexer_unget(h);
+                lexer_state = JQ_L_STRING;
             }
             break;
 
@@ -580,6 +589,7 @@ jq_get_token(struct jq_handler *h) {
                 jq_lexer_unget(h);
                 return JQ_T_NULL;
             }
+            break;
 
         case JQ_L_TRUE:
             if (True[nft_cnt]) {
@@ -594,6 +604,7 @@ jq_get_token(struct jq_handler *h) {
                 jq_lexer_unget(h);
                 return JQ_T_TRUE;
             }
+            break;
 
         case JQ_L_FALSE:
             if (False[nft_cnt]) {
@@ -608,6 +619,7 @@ jq_get_token(struct jq_handler *h) {
                 jq_lexer_unget(h);
                 return JQ_T_FALSE;
             }
+            break;
 
         case JQ_L_NORMAL:
             if (jq_iswc(c)) continue;
@@ -627,17 +639,17 @@ jq_get_token(struct jq_handler *h) {
                 return c;
 
             case 'n':
-                ++nft_cnt;
+                nft_cnt = 1;
                 lexer_state = JQ_L_NULL;
                 continue;
 
             case 't':
-                ++nft_cnt;
+                nft_cnt = 1;
                 lexer_state = JQ_L_TRUE;
                 continue;
 
             case 'f':
-                ++nft_cnt;
+                nft_cnt = 1;
                 lexer_state = JQ_L_FALSE;
                 continue;
 
@@ -900,6 +912,8 @@ jq_errstr(enum jq_error error) {
     switch (error) {
     case JQ_ERR_OK: return "Ok";
     case JQ_ERR_LEXER_UNKNOWN_TOKEN: return "Syntax error";
+    case JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL: return "Syntax error, unknown escape symbol";
+    case JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL: return "Syntax error, unknown hex symbol after '\\u' escape symbol";
     case JQ_ERR_LEXER_EXPONENT_ERROR: return "Syntax error in exponent part";
     case JQ_ERR_PARSER_NEED_MORE: return "Unexpected end of file";
     case JQ_ERR_PARSER_UNEXPECTED_TOKEN: return "Unexpected token";

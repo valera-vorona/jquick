@@ -44,6 +44,30 @@ TEST_CASE(test_correct)
     TEST_REQUIRE(r == JQ_TRUE);
 TEST_CASE_END()
  
+TEST_CASE(test_esc)
+    struct jq_handler h;
+    jq_bool r;
+    size_t sz;
+    char *json = read_json("../assets/glossary-esc.json", &sz);
+    if (!json) return 0;
+    jq_init(&h);
+    r = jq_parse_buf(&h, json, sz);
+    free(json);
+    TEST_REQUIRE(r == JQ_TRUE);
+TEST_CASE_END()
+
+TEST_CASE(test_esc_unicode)
+    struct jq_handler h;
+    jq_bool r;
+    size_t sz;
+    char *json = read_json("../assets/glossary-esc-unicode.json", &sz);
+    if (!json) return 0;
+    jq_init(&h);
+    r = jq_parse_buf(&h, json, sz);
+    free(json);
+    TEST_REQUIRE(r == JQ_TRUE);
+TEST_CASE_END()
+
 TEST_CASE(test_lexical_error)
     struct jq_handler h;
     jq_bool r;
@@ -92,6 +116,8 @@ TEST_END()
 
 TEST_SUITE(suite_jquick)
     TEST_CASE_RUN(test_correct);
+    TEST_CASE_RUN(test_esc);
+    TEST_CASE_RUN(test_esc_unicode);
     TEST_CASE_RUN(test_lexical_error);
     TEST_CASE_RUN(test_grammar_error);
     TEST_CASE_RUN(test_webapp);
