@@ -524,7 +524,7 @@ jq_get_token(struct jq_handler *h) {
     for (;;) {
         int c = jq_lexer_getchar(h);
         if (c == JQ_T_NEED_MORE) return c;
-    
+
         switch (h->lexer_state) {
         case JQ_L_STRING:
             switch (c) {
@@ -578,7 +578,11 @@ jq_get_token(struct jq_handler *h) {
                     h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
                     return JQ_T_ERROR;
                 }
-            } else return JQ_T_NULL;
+            } else {
+                jq_lexer_unget(h);
+                h->lexer_state = JQ_L_NORMAL;
+                return JQ_T_NULL;
+            }
 
         case JQ_L_TRUE:
             if (True[nft_cnt]) {
@@ -589,7 +593,11 @@ jq_get_token(struct jq_handler *h) {
                     h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
                     return JQ_T_ERROR;
                 }
-            } else return JQ_T_TRUE;
+            } else {
+                jq_lexer_unget(h);
+                h->lexer_state = JQ_L_NORMAL;
+                return JQ_T_TRUE;
+            }
 
         case JQ_L_FALSE:
             if (False[nft_cnt]) {
@@ -600,7 +608,11 @@ jq_get_token(struct jq_handler *h) {
                     h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
                     return JQ_T_ERROR;
                 }
-            } else return JQ_T_FALSE;
+            } else {
+                jq_lexer_unget(h);
+                h->lexer_state = JQ_L_NORMAL;
+                return JQ_T_FALSE;
+            }
 
         case JQ_L_NORMAL:
             if (jq_iswc(c)) continue;
