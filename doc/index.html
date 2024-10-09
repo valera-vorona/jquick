@@ -37,8 +37,10 @@ enum jq_bool {
 #### enum jq_error
 ~~~
 enum jq_error {
-    JQ_ERR_OK                       = 0,
+    JQ_ERR_OK                           = 0,
     JQ_ERR_LEXER_UNKNOWN_TOKEN,
+    JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL,
+    JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL,
     JQ_ERR_LEXER_EXPONENT_ERROR,
     JQ_ERR_PARSER_UNEXPECTED_TOKEN,
     JQ_ERR_PARSER_NEED_MORE
