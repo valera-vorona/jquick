@@ -1,0 +1,149 @@
+<meta charset='utf-8' emacsmode='-*- markdown -*-'>
+<link rel='stylesheet' href='https://casual-effects.com/markdeep/latest/apidoc.css?'>
+# jquick
+## About
+This is a single and quick json labrary written in ANCI C and 
+licensed under the MIT License <http://opensource.org/licenses/MIT>.
+SPDX-License-Identifier: MIT
+This library is header only and consists of only one header file. So
+you can just copy it near to your code and use.
+## Features
+* Single header library
+* No dependences. By default it dosen't use any includes or library linkages
+* No dynamic memory is allocated
+## Usage
+You can just copy this file nearly to your code and include.
+Macro JQ_WITH_IMPLEMENTATION should be used before including this file in only one
+of the files that use this library. The others just include this file without
+this macro.
+This is how main.c can include jquick
+~~~
+#define JQ_WITH_IMPLEMENTATION
+#include "jquick.h"
+~~~
+And the other files should include it without JQ_WITH_IMPLEMENTATION
+~~~
+#include "jquick.h"
+~~~
+## API
+### Enums, structs, typedefs
+#### enum jq_bool
+~~~
+enum jq_bool {
+   JQ_FALSE                        = 0,
+   JQ_TRUE                         = 1
+};
+~~~
+#### enum jq_error
+~~~
+enum jq_error {
+    JQ_ERR_OK                       = 0,
+    JQ_ERR_LEXER_UNKNOWN_TOKEN,
+    JQ_ERR_LEXER_EXPONENT_ERROR,
+    JQ_ERR_PARSER_UNEXPECTED_TOKEN,
+    JQ_ERR_PARSER_NEED_MORE
+};
+~~~
+#### enum jq_event_type
+~~~
+enum jq_event_type {
+   JQ_E_NULL,
+   JQ_E_TRUE,
+   JQ_E_FALSE,
+   JQ_E_STRING,
+   JQ_E_NUMBER,
+   JQ_E_OBJECT_BEGIN,
+   JQ_E_OBJECT_END,
+   JQ_E_ARRAY_BEGIN,
+   JQ_E_ARRAY_END,
+   JQ_E_OBJECT_KEY
+};
+~~~
+#### jq_callback
+Callback function pointer typedef. 
+~~~
+typedef void (*jq_callback)(struct jq_handler *h, enum jq_event_type);
+~~~
+#### struct hq_handler
+The main `jquick` handler.
+~~~
+struct jq_handler;
+~~~
+### Functions
+#### jq_init
+Initializes `jq_handler` struct which then is used in almost every `jquick` function.
+If you want to reuse previously used `jq_handler` struct, you can just call this
+function again and go on. No other cleanup is required.
+~~~
+jq_bool jq_init(struct jq_handler *h);
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__h__     | Pointer to `jq_handler` struct
+Returns `JQ_TRUE(1)` if ok, `JQ_FALSE(0)` if error occured.
+#### jq_append_buf
+ Appends an input buffer which then can be parsed with
+`jq_parse` or `jq_parse_buf()` function.
+~~~
+void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__h__     | Pointer to previously initialized `jq_handler` struct
+__src__   | Pointer to source buffer
+__sz__    | Size in bytes of source buffer
+#### jq_set_callback
+Sets the callback function pointer to handle `jquick` events, i.e. start of object,
+end of array, null, false, true etc.
+See enum `jq_event_type` for all the events this callback is called for.
+~~~
+void jq_set_callback(struct jq_handler *h, jq_callback callback);
+~~~
+Parameter       | Description
+----------------|----------------------------------------------------------------
+__h__           | Pointer to previously initialized `jq_handler` struct
+__callback__    | Pointer to callback function. See `jq_callback` typedef for prototype 
+#### jq_parse
+Parses previously appended with `jq_append_buf` json input buffer.
+~~~
+jq_bool jq_parse(struct jq_handler *h);
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__h__     | Pointer to previously initialized `jq_handler` struct
+Returns `JQ_TRUE(1)` if ok, `JQ_FALSE(0)` if error occured.
+The error code can be retrieved with `jq_get_error()` function.
+#### jq_parse_buf
+Parses json input buffer. This function is just a wrapper which calls
+sequentially `jq_append_buf` and `jq_parse` returning what the below has returned.
+~~~
+jq_bool jq_parse_buf(struct jq_handler *h, jq_char *src, jq_size sz);
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__h__     | Pointer to previously initialized `jq_handler` struct
+__src__   | Pointer to source buffer
+__sz__    | Size in bytes of source buffer
+Returns `JQ_TRUE(1)` if ok, `JQ_FALSE(0)` if error occured.
+The error code can be retrieved with `jq_get_error()` function.
+#### jq_get_error
+Returns error code of the latest parsing operation.
+It is implemented as a macro.
+~~~
+enum jq_error jq_get_error(struct jq_handler *h) (h->error)
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__h__     | Pointer to previously initialized `jq_handler` struct
+Returns error code defined in `enum jq_error`. 
+#### jq_errstr
+Shows a readable error description.
+~~~
+const char *jq_errstr(enum jq_error error);
+~~~
+Parameter | Description
+----------|----------------------------------------------------------------
+__error__ | Error code. It can be retrieved with `jq_get_error()` function
+Returns a readable error description.
+<script>markdeepOptions={tocStyle:'medium'};</script>
+<!-- Markdeep: --><script src='https://casual-effects.com/markdeep/latest/markdeep.min.js?'></script>
