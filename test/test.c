@@ -16,7 +16,7 @@ char *read_json(const char *fname, size_t *rsz) {
     fseek(fp, 0L, SEEK_END);
     sz = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    rv = malloc(sz);
+    rv = (char *)malloc(sz);
     if (rv == NULL) {
         perror("Error allocating memory");
     } else {
@@ -31,6 +31,12 @@ char *read_json(const char *fname, size_t *rsz) {
 
     return rv;
 }
+
+/* ==============================
+ *
+ * Test suite suite_basic
+ *
+ ================================ */
 
 TEST_CASE(test_correct)
     struct jq_handler h;
@@ -105,16 +111,12 @@ TEST_CASE(test_webapp)
     free(json);
     TEST_REQUIRE(r == JQ_TRUE);
 TEST_CASE_END()
- 
-/* test main function */
 
-TEST(jquick)
-    TEST_SUITE_RUN(suite_jquick);
-TEST_END()
+/*
+ * main test suite basic function
+ */
 
-/* test suites */
-
-TEST_SUITE(suite_jquick)
+TEST_SUITE(suite_basic)
     TEST_CASE_RUN(test_correct);
     TEST_CASE_RUN(test_esc);
     TEST_CASE_RUN(test_esc_unicode);
@@ -122,6 +124,53 @@ TEST_SUITE(suite_jquick)
     TEST_CASE_RUN(test_grammar_error);
     TEST_CASE_RUN(test_webapp);
 TEST_SUITE_END()
+
+/* ==============================
+ *
+ * Test suite suite streaming_
+ *
+ ================================ */
+
+/* Separating json into two parts and calling jq_parse_buf() two times */
+TEST_CASE(test_stream)
+    struct jq_handler h;
+    jq_bool r;
+    size_t sz;
+    size_t part1;
+    char *json = read_json("../assets/web-app.json", &sz);
+    if (!json) return 0;
+
+    part1 = sz / 2;
+    jq_init(&h);
+    r = jq_parse_buf(&h, json, part1);
+    TEST_REQUIRE(r == JQ_FALSE);
+    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_PARSER_NEED_MORE);
+    r = jq_parse_buf(&h, json + h.i, sz - h.i);
+    free(json);
+    TEST_REQUIRE(r == JQ_TRUE);
+    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
+TEST_CASE_END()
+
+/*
+ * main test suite streaming function
+ */
+
+TEST_SUITE(suite_streaming)
+    TEST_CASE_RUN(test_stream);
+TEST_SUITE_END()
+
+/* ==============================
+ *
+ * Test main function
+ *
+ ================================ */
+
+TEST(jquick)
+    TEST_SUITE_RUN(suite_basic);
+    TEST_SUITE_RUN(suite_streaming);
+TEST_END()
+
+/* test suites */
 
 int main() {
     return TEST_RUN(jquick);

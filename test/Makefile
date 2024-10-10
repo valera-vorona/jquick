@@ -15,6 +15,7 @@ endif
 $(BIN): clean
 	$(MKDIR) $(DIR)/
 	$(CC) $(SRC) $(CFLAGS) -o $(DIR)/$(BIN)
+#	$(CXX) $(SRC) -o $(DIR)/$(BIN)
 
 clean:
 	rm -f $(OBJS)

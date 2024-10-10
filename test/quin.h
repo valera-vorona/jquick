@@ -12,7 +12,7 @@ int qu_total;
 int qu_failed;
 
 #define TEST(name) extern int name() { \
-  char *test_name = #name; \
+  const char *test_name = #name; \
   qu_total = 0; \
   qu_failed = 0; \
   qu_printf("Begin quin test '" #name "'\n"); \
