@@ -123,7 +123,6 @@ enum jq_error {
 };
 
 enum jq_token_type {
-    JQ_T_UNDEFINED                      = -1,   /* Used at the beginning of scan */
     JQ_T_ERROR                          = 0,
     JQ_T_NEED_MORE                      = 256,
     JQ_T_NULL                           = 257,
@@ -409,6 +408,10 @@ jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
     h->buf = src;
     h->buf_size = sz;
     h->i = 0;
+
+    if (h->error == JQ_ERR_NEED_MORE) {
+        h->error = JQ_ERR_OK;
+    }
 }
 
 JQ_INLINE void
@@ -749,28 +752,18 @@ JQ_API jq_bool
 jq_parse(struct jq_handler *h) {
     enum jq_parser_state state = jq_parser_get_state(h);
 
-    h->error = JQ_ERR_OK;
+    if (h->error != JQ_ERR_OK) return JQ_FALSE;
 
     for (;;) {
         enum jq_token_type token = jq_get_token(h);
 
-        if (token == JQ_T_NEED_MORE) {
-            if (state == JQ_S_COMPLETE) {
-                h->error = JQ_ERR_OK;
-                return JQ_TRUE;
-            } else {
-                /* Lexer already set error */
-                return JQ_FALSE;
-            }
-        }
-
-        if (state == JQ_S_COMPLETE) {
-            h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN;
-            return JQ_FALSE; /* Unexpected token after a valid json object */
+        if (state == JQ_S_COMPLETE && token == JQ_T_NEED_MORE) {
+            h->error = JQ_ERR_OK;
+            return JQ_TRUE;
         }
 
         switch (token) {
-        case JQ_T_ERROR:
+        case JQ_T_ERROR: case JQ_T_NEED_MORE:
             return JQ_FALSE; /* Lexer already set error */
 
         case JQ_T_NULL: case JQ_T_TRUE: case JQ_T_FALSE: case JQ_T_NUMBER: case JQ_T_STRING:
