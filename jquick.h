@@ -241,8 +241,8 @@ struct jq_handler {
 /// ### Functions
 ///
 /// #### jq_init
-/// Initializes `jq_handler` struct which then is used in almost every `jquick` function.
-/// If you want to reuse previously used `jq_handler` struct, you can just call this
+/// Initializes struct `jq_handler` which then is used in almost every `jquick` function.
+/// If you want to reuse previously used struct `jq_handler`, you can just call `jq_init`
 /// function again and go on. No other cleanup is required.
 /// ~~~
 /// jq_bool jq_init(struct jq_handler *h);
@@ -250,7 +250,7 @@ struct jq_handler {
 ///
 /// Parameter | Description
 /// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to `jq_handler` struct
+/// __h__     | Pointer to struct `jq_handler`
 ///
 /// Returns `JQ_TRUE(1)` if ok, `JQ_FALSE(0)` if error occured.
 ///
@@ -260,16 +260,16 @@ JQ_API jq_bool jq_init(struct jq_handler *h);
 /*
 /// #### jq_append_buf
 ///  Appends an input buffer which then can be parsed with
-/// `jq_parse` or `jq_parse_buf()` function.
+/// `jq_parse` or `jq_parse_buf` function.
 /// ~~~
 /// void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 /// ~~~
 ///
 /// Parameter | Description
 /// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to previously initialized `jq_handler` struct
+/// __h__     | Pointer to previously initialized `jq_handler`
 /// __src__   | Pointer to source buffer
-/// __sz__    | Size in bytes of source buffer
+/// __sz__    | Size of source buffer in bytes
 ///
 */
 JQ_INLINE void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
@@ -285,7 +285,7 @@ JQ_INLINE void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 ///
 /// Parameter       | Description
 /// ----------------|----------------------------------------------------------------
-/// __h__           | Pointer to previously initialized `jq_handler` struct
+/// __h__           | Pointer to previously initialized `jq_handler`
 /// __callback__    | Pointer to callback function. See `jq_callback` typedef for prototype 
 ///
 */
@@ -300,7 +300,7 @@ JQ_INLINE void jq_set_callback(struct jq_handler *h, jq_callback callback);
 ///
 /// Parameter | Description
 /// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to previously initialized `jq_handler` struct
+/// __h__     | Pointer to previously initialized `jq_handler`
 ///
 /// Returns `JQ_TRUE(1)` if ok, `JQ_FALSE(0)` if error occured.
 /// The error code can be retrieved with `jq_get_error()` function.
@@ -310,15 +310,15 @@ JQ_API jq_bool jq_parse(struct jq_handler *h);
 
 /*
 /// #### jq_parse_buf
-/// Parses json input buffer. This function is just a wrapper which calls
-/// sequentially `jq_append_buf` and `jq_parse` returning what the below has returned.
+/// Parses json input buffer. This function is just a wrapper which calls `jq_append_buf`
+/// and `jq_parse` functions sequentially returning what the below has returned.
 /// ~~~
 /// jq_bool jq_parse_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 /// ~~~
 ///
 /// Parameter | Description
 /// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to previously initialized `jq_handler` struct
+/// __h__     | Pointer to previously initialized `jq_handler`
 /// __src__   | Pointer to source buffer
 /// __sz__    | Size in bytes of source buffer
 ///
@@ -333,17 +333,48 @@ JQ_INLINE jq_bool jq_parse_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 /// Returns error code of the latest parsing operation.
 /// It is implemented as a macro.
 /// ~~~
-/// enum jq_error jq_get_error(struct jq_handler *h) (h->error)
+/// enum jq_error jq_get_error(struct jq_handler *h)
 /// ~~~
 ///
 /// Parameter | Description
 /// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to previously initialized `jq_handler` struct
+/// __h__     | Pointer to previously initialized `jq_handler`
 ///
 /// Returns error code defined in `enum jq_error`. 
 ///
 */
 #define jq_get_error(h) ((h)->error)
+
+/*
+/// #### jq_set_error
+/// Sets error code to one of enum `jq_error` constants.
+/// It is implemented as a macro.
+/// ~~~
+/// void jq_set_error(struct jq_handler *h, enum jq_error error)
+/// ~~~
+///
+/// Parameter | Description
+/// ----------|----------------------------------------------------------------
+/// __h__     | Pointer to previously initialized `jq_handler`
+/// __error__ | error code of enum `jq_error`
+///
+*/
+#define jq_set_error(h, e) ((h)->error = e)
+
+/*
+/// #### jq_reset_error
+/// Resets error code to JQ_ERR_OK.
+/// It is implemented as a macro.
+/// ~~~
+/// void jq_reset_error(struct jq_handler *h)
+/// ~~~
+///
+/// Parameter | Description
+/// ----------|----------------------------------------------------------------
+/// __h__     | Pointer to previously initialized `jq_handler`
+///
+*/
+#define jq_reset_error(h) jq_set_error(h, JQ_ERR_OK)
 
 /*
 /// #### jq_errstr
@@ -409,8 +440,8 @@ jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
     h->buf_size = sz;
     h->i = 0;
 
-    if (h->error == JQ_ERR_NEED_MORE) {
-        h->error = JQ_ERR_OK;
+    if (jq_get_error(h) == JQ_ERR_NEED_MORE) {
+        jq_reset_error(h);
     }
 }
 
@@ -732,7 +763,7 @@ JQ_API enum jq_token_type
 jq_handle_lexer_error(struct jq_handler *h, size_t start_pos, enum jq_error error) {
     size_t n = h->i - start_pos;
     while (n--) jq_lexer_unget(h);
-    h->error = error;
+    jq_set_error(h, error);
     return JQ_T_ERROR;
 }
 
@@ -752,13 +783,13 @@ JQ_API jq_bool
 jq_parse(struct jq_handler *h) {
     enum jq_parser_state state = jq_parser_get_state(h);
 
-    if (h->error != JQ_ERR_OK) return JQ_FALSE;
+    if (jq_get_error(h) != JQ_ERR_OK) return JQ_FALSE;
 
     for (;;) {
         enum jq_token_type token = jq_get_token(h);
 
         if (state == JQ_S_COMPLETE && token == JQ_T_NEED_MORE) {
-            h->error = JQ_ERR_OK;
+            jq_reset_error(h);
             return JQ_TRUE;
         }
 
@@ -773,13 +804,13 @@ jq_parse(struct jq_handler *h) {
                 case 0: if (token == JQ_T_STRING) {
                     if (h->callback) h->callback(h, JQ_E_OBJECT_KEY);
                 } else {
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Expected object key */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Expected object key */
                     return JQ_FALSE;
                 }
                 break;
 
                 case 1:
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Expected ':' */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Expected ':' */
                     return JQ_FALSE;
 
                 case 2:
@@ -787,14 +818,14 @@ jq_parse(struct jq_handler *h) {
                     break;
 
                 case 3:
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Expected ',' or '}' */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Expected ',' or '}' */
                     return JQ_FALSE;
                 }
                 break;
 
             case JQ_S_ARRAY:
                 if (h->cnt & 1) {
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Expected ',' or ']' */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Expected ',' or ']' */
                     return JQ_FALSE;
                 } else {
                     if (h->callback) h->callback(h, (enum jq_event_type)token);
@@ -810,7 +841,7 @@ jq_parse(struct jq_handler *h) {
 
         case ':':
             if (state != JQ_S_OBJECT || h->cnt != 1) {
-                h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Unexpected ':' */
+                jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Unexpected ':' */
                 JQ_FALSE;
             }
             break;
@@ -819,20 +850,20 @@ jq_parse(struct jq_handler *h) {
             switch (state) {
             case JQ_S_OBJECT:
                 if (h->cnt != 3) {
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Unexpected ',' */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Unexpected ',' */
                     JQ_FALSE;
                 }
                 break;
 
             case JQ_S_ARRAY:
                 if (!(h->cnt & 1)) {
-                    h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Unexpected ',' array element delimeter */
+                    jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Unexpected ',' array element delimeter */
                     return JQ_FALSE;
                 }
                 break;
 
             default:
-                h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Unexpected ',' array element delimeter */
+                jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Unexpected ',' array element delimeter */
                 return JQ_FALSE;
 
             }
@@ -854,7 +885,7 @@ jq_parse(struct jq_handler *h) {
 
         case '}': case ']':
             if (state == JQ_S_UNDEFINED) {
-                h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Unexpected token and the beginning */ 
+                jq_set_error(h, JQ_ERR_PARSER_UNEXPECTED_TOKEN); /* Unexpected token and the beginning */ 
 
                 return JQ_FALSE;
             }
@@ -884,11 +915,11 @@ JQ_API const char *
 jq_errstr(enum jq_error error) {
     switch (error) {
     case JQ_ERR_OK: return "Ok";
+    case JQ_ERR_NEED_MORE: return "Unexpected end of file";
     case JQ_ERR_LEXER_UNKNOWN_TOKEN: return "Syntax error";
     case JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL: return "Syntax error, unknown escape symbol";
     case JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL: return "Syntax error, unknown hex symbol after '\\u' escape symbol";
     case JQ_ERR_LEXER_EXPONENT_ERROR: return "Syntax error in exponent part";
-    case JQ_ERR_NEED_MORE: return "Unexpected end of file";
     case JQ_ERR_PARSER_UNEXPECTED_TOKEN: return "Unexpected token";
     default: return "Ok";
     }

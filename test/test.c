@@ -139,7 +139,7 @@ TEST_CASE(test_stream)
     size_t part1;
     char *json = read_json("../assets/web-app.json", &sz);
     if (!json) return 0;
-
+jq_reset_error(&h);
     part1 = sz / 2;
     jq_init(&h);
     r = jq_parse_buf(&h, json, part1);
