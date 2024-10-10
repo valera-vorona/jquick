@@ -26,13 +26,13 @@ And the other files should include it without JQ_WITH_IMPLEMENTATION
 #include "jquick.h"
 ~~~
 ## API
-### Enums, structs, typedefs
-#### enum jq_bool
+### Defines, enums, structs, typedefs
 ~~~
-enum jq_bool {
-   JQ_FALSE                        = 0,
-   JQ_TRUE                         = 1
-};
+typedef char jq_char;
+typedef unsigned long int jq_size;
+typedef int jq_bool;
+#define JQ_FALSE                          0
+#define JQ_TRUE                           1
 ~~~
 #### enum jq_error
 ~~~

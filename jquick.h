@@ -81,26 +81,22 @@ extern "C" {
 
 struct jq_handler;
 
+/*/// ## API
+///
+/// ### Defines, enums, structs, typedefs
+/// ~~~
+/// typedef char jq_char;
+/// typedef unsigned long int jq_size;
+/// typedef int jq_bool;
+/// #define JQ_FALSE                          0
+/// #define JQ_TRUE                           1
+/// ~~~
+*/
 typedef char jq_char;
 typedef unsigned long int jq_size;
 typedef int jq_bool;
-
-/*/// ## API
-///
-/// ### Enums, structs, typedefs
-///
-/// #### enum jq_bool
-/// ~~~
-/// enum jq_bool {
-///    JQ_FALSE                        = 0,
-///    JQ_TRUE                         = 1
-/// };
-/// ~~~
-*/
-enum jq_bool {
-    JQ_FALSE                        = 0,
-    JQ_TRUE                         = 1
-};
+#define JQ_FALSE                            0
+#define JQ_TRUE                             1
 
 /*//
 /// #### enum jq_error
@@ -412,6 +408,7 @@ JQ_INLINE void
 jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
     h->buf = src;
     h->buf_size = sz;
+    h->i = 0;
 }
 
 JQ_INLINE void
@@ -440,8 +437,8 @@ jq_ishex(jq_char c) {
     return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
 
-JQ_INLINE jq_char *
-JQ_STRCHR(jq_char *s, jq_char c) {
+JQ_INLINE const jq_char *
+JQ_STRCHR(const jq_char *s, jq_char c) {
     while (*s) {
         if (*s == c) return s;
         ++s;
@@ -505,7 +502,10 @@ jq_get_token(struct jq_handler *h) {
 
     for (;;) {
         int c = jq_lexer_getchar(h);
-        if (c == JQ_T_NEED_MORE) return c;
+        if (c == JQ_T_NEED_MORE) {
+            jq_handle_lexer_error(h, start_pos, JQ_ERR_PARSER_NEED_MORE);
+            return JQ_T_NEED_MORE;
+        }
 
         switch (lexer_state) {
         case JQ_L_STRING:
@@ -608,7 +608,7 @@ jq_get_token(struct jq_handler *h) {
                 continue;
 
             case '{': case '}': case '[': case ']': case ':': case ',':
-                return c;
+                return (enum jq_token_type)c;
 
             case 'n':
                 nft_cnt = 1;
@@ -756,9 +756,10 @@ jq_parse(struct jq_handler *h) {
 
         if (token == JQ_T_NEED_MORE) {
             if (state == JQ_S_COMPLETE) {
+                h->error = JQ_ERR_OK;
                 return JQ_TRUE;
             } else {
-                h->error = JQ_ERR_PARSER_NEED_MORE;
+                /* Lexer already set error */
                 return JQ_FALSE;
             }
         }
@@ -770,7 +771,7 @@ jq_parse(struct jq_handler *h) {
 
         switch (token) {
         case JQ_T_ERROR:
-            return JQ_FALSE; /* Lexer already set h->error */
+            return JQ_FALSE; /* Lexer already set error */
 
         case JQ_T_NULL: case JQ_T_TRUE: case JQ_T_FALSE: case JQ_T_NUMBER: case JQ_T_STRING:
             switch (state) {
@@ -789,7 +790,7 @@ jq_parse(struct jq_handler *h) {
                     return JQ_FALSE;
 
                 case 2:
-                    if (h->callback) h->callback(h, token);
+                    if (h->callback) h->callback(h, (enum jq_event_type)token);
                     break;
 
                 case 3:
@@ -803,12 +804,12 @@ jq_parse(struct jq_handler *h) {
                     h->error = JQ_ERR_PARSER_UNEXPECTED_TOKEN; /* Expected ',' or ']' */
                     return JQ_FALSE;
                 } else {
-                    if (h->callback) h->callback(h, token);
+                    if (h->callback) h->callback(h, (enum jq_event_type)token);
                 }
                 break;
 
             case JQ_S_UNDEFINED:
-                if (h->callback) h->callback(h, token);
+                if (h->callback) h->callback(h, (enum jq_event_type)token);
                 state = JQ_S_COMPLETE;
                 break;    
             }
@@ -848,14 +849,14 @@ jq_parse(struct jq_handler *h) {
             jq_parser_push_state(h, JQ_S_OBJECT);
             state = JQ_S_OBJECT;
             h->cnt = 3; /* jq_parser_inc_cnt() which is called at the bottom of this loop will make it 0 */
-            if (h->callback) h->callback(h, token);
+            if (h->callback) h->callback(h, (enum jq_event_type)token);
             break;
 
         case '[':
             jq_parser_push_state(h, JQ_S_ARRAY);
             state = JQ_S_ARRAY;
             h->cnt = 3; /* jq_parser_inc_cnt() which is called at the bottom of this loop will make it 0 */
-            if (h->callback) h->callback(h, token);
+            if (h->callback) h->callback(h, (enum jq_event_type)token);
             break;
 
         case '}': case ']':
@@ -866,7 +867,7 @@ jq_parse(struct jq_handler *h) {
             }
 
             state = jq_parser_pop_state(h);
-            if (h->callback) h->callback(h, token);
+            if (h->callback) h->callback(h, (enum jq_event_type)token);
 
             h->cnt = 2; /* jq_parser_inc_cnt() which is called at the bottom of this loop will make it 3 */
 
@@ -896,12 +897,13 @@ jq_errstr(enum jq_error error) {
     case JQ_ERR_LEXER_EXPONENT_ERROR: return "Syntax error in exponent part";
     case JQ_ERR_PARSER_NEED_MORE: return "Unexpected end of file";
     case JQ_ERR_PARSER_UNEXPECTED_TOKEN: return "Unexpected token";
+    default: return "Ok";
     }
 }
 
 JQ_INLINE enum jq_parser_state
 jq_parser_get_state(struct jq_handler *h) {
-    return h->stack[h->stack_pos];
+    return (enum jq_parser_state)h->stack[h->stack_pos];
 }
 
 JQ_INLINE void
@@ -911,7 +913,7 @@ jq_parser_push_state(struct jq_handler *h, enum jq_parser_state state) {
 
 JQ_INLINE enum jq_parser_state
 jq_parser_pop_state(struct jq_handler *h) {
-    return h->stack[--h->stack_pos];
+    return (enum jq_parser_state)h->stack[--h->stack_pos];
 }
 
 #endif /* JQ_WITH_IMPLEMENTATION */
