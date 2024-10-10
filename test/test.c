@@ -144,7 +144,7 @@ jq_reset_error(&h);
     jq_init(&h);
     r = jq_parse_buf(&h, json, part1);
     TEST_REQUIRE(r == JQ_FALSE);
-    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_NEED_MORE);
+    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_LEXER_NEED_MORE);
 
     r = jq_parse_buf(&h, json + h.i, sz - h.i);
     free(json);

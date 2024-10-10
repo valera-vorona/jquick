@@ -103,7 +103,7 @@ typedef int jq_bool;
 /// ~~~
 /// enum jq_error {
 ///     JQ_ERR_OK                           = 0,
-///     JQ_ERR_NEED_MORE,
+///     JQ_ERR_LEXER_NEED_MORE,
 ///     JQ_ERR_LEXER_UNKNOWN_TOKEN,
 ///     JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL,
 ///     JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL,
@@ -114,7 +114,7 @@ typedef int jq_bool;
 */
 enum jq_error {
     JQ_ERR_OK                           = 0,
-    JQ_ERR_NEED_MORE,
+    JQ_ERR_LEXER_NEED_MORE,
     JQ_ERR_LEXER_UNKNOWN_TOKEN,
     JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL,
     JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL,
@@ -440,7 +440,7 @@ jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
     h->buf_size = sz;
     h->i = 0;
 
-    if (jq_get_error(h) == JQ_ERR_NEED_MORE) {
+    if (jq_get_error(h) == JQ_ERR_LEXER_NEED_MORE) {
         jq_reset_error(h);
     }
 }
@@ -448,6 +448,20 @@ jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
 JQ_INLINE void
 jq_set_callback(struct jq_handler *h, jq_callback callback) {
     h->callback = callback;
+}
+
+JQ_API const char *
+jq_errstr(enum jq_error error) {
+    switch (error) {
+    case JQ_ERR_OK: return "Ok";
+    case JQ_ERR_LEXER_NEED_MORE: return "Unexpected end of file";
+    case JQ_ERR_LEXER_UNKNOWN_TOKEN: return "Syntax error";
+    case JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL: return "Syntax error, unknown escape symbol";
+    case JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL: return "Syntax error, unknown hex symbol after '\\u' escape symbol";
+    case JQ_ERR_LEXER_EXPONENT_ERROR: return "Syntax error in exponent part";
+    case JQ_ERR_PARSER_UNEXPECTED_TOKEN: return "Unexpected token";
+    default: return "Ok";
+    }
 }
 
 /* ==========================================================================
@@ -537,7 +551,7 @@ jq_get_token(struct jq_handler *h) {
     for (;;) {
         int c = jq_lexer_getchar(h);
         if (c == JQ_T_NEED_MORE) {
-            jq_handle_lexer_error(h, start_pos, JQ_ERR_NEED_MORE);
+            jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_NEED_MORE);
             return JQ_T_NEED_MORE;
         }
 
@@ -909,20 +923,6 @@ JQ_INLINE jq_bool
 jq_parse_buf(struct jq_handler *h, jq_char *src, jq_size sz) {
     jq_append_buf(h, src, sz);
     return jq_parse(h);
-}
-
-JQ_API const char *
-jq_errstr(enum jq_error error) {
-    switch (error) {
-    case JQ_ERR_OK: return "Ok";
-    case JQ_ERR_NEED_MORE: return "Unexpected end of file";
-    case JQ_ERR_LEXER_UNKNOWN_TOKEN: return "Syntax error";
-    case JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL: return "Syntax error, unknown escape symbol";
-    case JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL: return "Syntax error, unknown hex symbol after '\\u' escape symbol";
-    case JQ_ERR_LEXER_EXPONENT_ERROR: return "Syntax error in exponent part";
-    case JQ_ERR_PARSER_UNEXPECTED_TOKEN: return "Unexpected token";
-    default: return "Ok";
-    }
 }
 
 JQ_INLINE enum jq_parser_state
