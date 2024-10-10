@@ -427,6 +427,7 @@ jq_set_callback(struct jq_handler *h, jq_callback callback) {
 
 /* Forward declarations */
 JQ_INLINE enum jq_token_type jq_finish_number(struct jq_handler *h);
+JQ_API enum jq_token_type jq_handle_lexer_error(struct jq_handler *h, size_t start_pos, enum jq_error error);
 
 #define jq_iswc(c) (JQ_STRCHR(" \n\r\t", c) != JQ_NULL)
 #define jq_isesc(c) (JQ_STRCHR("\"\\/bfnrt", c) != JQ_NULL)
@@ -494,12 +495,13 @@ jq_lexer_unget(struct jq_handler *h) {
 
 JQ_API enum jq_token_type
 jq_get_token(struct jq_handler *h) {
-    int nft_cnt; /* current symbol inside null, true, false or unicode (\uxxxx) */
     static const char Null[] = "null";
     static const char True[] = "true";
     static const char False[] = "false";
 
+    int nft_cnt; /* current symbol inside null, true, false or unicode (\uxxxx) */
     enum jq_lexer_state lexer_state = JQ_L_NORMAL;
+    size_t start_pos = h->i; /* start position of the token */
 
     for (;;) {
         int c = jq_lexer_getchar(h);
@@ -534,16 +536,14 @@ jq_get_token(struct jq_handler *h) {
             } else if (jq_isesc(c)) {
                 lexer_state = JQ_L_STRING;
             } else {
-                h->error = JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL;
-                return JQ_T_ERROR;
+                return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL);
             }
             break;
 
         case JQ_L_UNICODE:
             if (nft_cnt++ < 4) {
                 if (!jq_ishex(c)) {
-                    h->error = JQ_ERR_LEXER_UNKNOWN_HEX_SYMBOL;
-                    return JQ_T_ERROR;
+                    return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_ESCAPE_SYMBOL);
                 }
             } else {
                 jq_lexer_unget(h);
@@ -557,8 +557,7 @@ jq_get_token(struct jq_handler *h) {
                     ++nft_cnt;
                     continue;
                 } else {
-                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
-                    return JQ_T_ERROR;
+                    return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_TOKEN);
                 }
             } else {
                 jq_lexer_unget(h);
@@ -572,8 +571,7 @@ jq_get_token(struct jq_handler *h) {
                     ++nft_cnt;
                     continue;
                 } else {
-                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
-                    return JQ_T_ERROR;
+                    return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_TOKEN);
                 }
             } else {
                 jq_lexer_unget(h);
@@ -587,8 +585,7 @@ jq_get_token(struct jq_handler *h) {
                     ++nft_cnt;
                     continue;
                 } else {
-                    h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
-                    return JQ_T_ERROR;
+                    return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_TOKEN);
                 }
             } else {
                 jq_lexer_unget(h);
@@ -629,8 +626,7 @@ jq_get_token(struct jq_handler *h) {
                 continue;
 
             default:
-                h->error = JQ_ERR_LEXER_UNKNOWN_TOKEN;
-                return JQ_T_ERROR;
+                return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_UNKNOWN_TOKEN);
             }
             break;
 
@@ -690,15 +686,15 @@ jq_get_token(struct jq_handler *h) {
             } else if (JQ_STRCHR("0123456789", c) != JQ_NULL) {
                 lexer_state = JQ_L_NUM_EXPO_INT;
             } else {
-                h->error = JQ_ERR_LEXER_EXPONENT_ERROR;
-                return JQ_T_ERROR; /* Nothing found after exponent E(e) */
+                /* Nothing found after exponent E(e) */
+                return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_EXPONENT_ERROR);
             }
             continue;
 
         case JQ_L_NUM_EXPO_INT1:
             if (JQ_STRCHR("0123456789", c) == JQ_NULL) {
-                h->error = JQ_ERR_LEXER_EXPONENT_ERROR;
-                return JQ_T_ERROR; /* Nothing found after exponent E(e)+- */
+                /* Nothing found after exponent E(e)+- */
+                return jq_handle_lexer_error(h, start_pos, JQ_ERR_LEXER_EXPONENT_ERROR);
             } else {
                 lexer_state = JQ_L_NUM_EXPO_INT;
             }
@@ -727,6 +723,14 @@ jq_finish_number(struct jq_handler *h) {
 #endif
 
     return JQ_T_NUMBER;
+}
+
+JQ_API enum jq_token_type
+jq_handle_lexer_error(struct jq_handler *h, size_t start_pos, enum jq_error error) {
+    size_t n = h->i - start_pos;
+    while (n--) jq_lexer_unget(h);
+    h->error = error;
+    return JQ_T_ERROR;
 }
 
 /* ==========================================================================
