@@ -1,7 +1,9 @@
 #include "quin.h"
 #define JQ_WITH_IMPLEMENTATION
+#define JQ_WITH_NULLTERM
 #include "../jquick.h"
 #include <malloc.h>
+#include <string.h>
 
 char *read_json(const char *fname, size_t *rsz) {
     size_t sz;
@@ -113,7 +115,7 @@ TEST_CASE(test_webapp)
 TEST_CASE_END()
 
 /*
- * main test suite basic function
+ * main suite_basic function
  */
 
 TEST_SUITE(suite_basic)
@@ -127,7 +129,7 @@ TEST_SUITE_END()
 
 /* ==============================
  *
- * Test suite suite streaming_
+ * Test suite suite_stream
  *
  ================================ */
 
@@ -139,7 +141,7 @@ TEST_CASE(test_stream)
     size_t part1;
     char *json = read_json("../assets/web-app.json", &sz);
     if (!json) return 0;
-jq_reset_error(&h);
+
     part1 = sz / 2;
     jq_init(&h);
     r = jq_parse_buf(&h, json, part1);
@@ -152,12 +154,68 @@ jq_reset_error(&h);
     TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
 TEST_CASE_END()
 
+/* Separating json into four parts, copying the parts into a separate array */
+TEST_CASE(test_stream_four_parts)
+    struct jq_handler h;
+    jq_bool r;
+    size_t sz;
+    const int NUM = 4;
+    size_t sizes[] = { 1000, 128, 25, 0 };
+    char *parts[NUM];
+    int i;
+    char *cur;
+
+    /* Reading json from file */
+    char *json = read_json("../assets/web-app.json", &sz);
+    if (!json) return 0;
+    cur = json;
+    sizes[3] = sz - sizes[0] - sizes[1] - sizes[2];
+
+    /* Splitting json into parts and copying the parts into array */
+    for (i = 0; i < NUM; ++i) {
+        parts[i] = (char *)malloc(sizes[i]);
+        memcpy(parts[i], cur, sizes[i]);
+        cur += sizes[i];
+    }
+
+    /* Now the initial json doesn't exist and we are to read it part by part
+     * from parts[] array
+     */
+    free(json);
+
+    jq_init(&h);
+    /* Reading NUM parts */
+    for (i = 0; i < NUM; ++i) {
+        size_t add = h.buf_size - h.i; /* add = block size which jq_parse() function
+                                          could not read */
+
+        /* Adding the previously unread memory block to the beginning of the new json part */
+        parts[i] = (char *)realloc(parts[i], sizes[i] + add);
+        memmove(parts[i] + add, parts[i], sizes[i]);
+        memcpy(parts[i], h.buf + h.i, add);
+
+        r = jq_parse_buf(&h, parts[i], sizes[i] + add);
+        if (i < NUM -1) {
+            TEST_REQUIRE(r == JQ_FALSE);
+            TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_LEXER_NEED_MORE);
+        }
+    }
+
+    for (i = 0; i < NUM; ++i) {
+        free(parts[i]);
+    }
+
+    TEST_REQUIRE(r == JQ_TRUE);
+    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
+TEST_CASE_END()
+
 /*
- * main test suite streaming function
+ * main suite_stream function
  */
 
 TEST_SUITE(suite_streaming)
     TEST_CASE_RUN(test_stream);
+    TEST_CASE_RUN(test_stream_four_parts);
 TEST_SUITE_END()
 
 /* ==============================
@@ -170,8 +228,6 @@ TEST(jquick)
     TEST_SUITE_RUN(suite_basic);
     TEST_SUITE_RUN(suite_streaming);
 TEST_END()
-
-/* test suites */
 
 int main() {
     return TEST_RUN(jquick);
