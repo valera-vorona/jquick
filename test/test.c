@@ -195,9 +195,6 @@ TEST_CASE(test_stream)
     TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
 TEST_CASE_END()
 
-#define jq_get_tail(h) ((h)->buf + (h)->i)
-#define jq_get_tail_size(h) ((h)->buf_size - (h)->i)
-
 /* Separating json into four parts, copying the parts into a separate array */
 TEST_CASE(test_stream_four_parts)
     struct jq_handler h;

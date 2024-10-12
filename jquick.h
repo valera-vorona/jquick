@@ -258,23 +258,6 @@ struct jq_handler {
 JQ_API jq_bool jq_init(struct jq_handler *h);
 
 /*
-/// #### jq_append_buf
-///  Appends an input buffer which then can be parsed with
-/// `jq_parse` or `jq_parse_buf` function.
-/// ~~~
-/// void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
-/// ~~~
-///
-/// Parameter | Description
-/// ----------|----------------------------------------------------------------
-/// __h__     | Pointer to previously initialized `jq_handler`
-/// __src__   | Pointer to source buffer
-/// __sz__    | Size of source buffer in bytes
-///
-*/
-JQ_INLINE void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
-
-/*
 /// #### jq_set_callback
 /// Sets the callback function pointer to handle `jquick` events, i.e. start of object,
 /// end of array, null, false, true etc.
@@ -290,6 +273,23 @@ JQ_INLINE void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 ///
 */
 JQ_INLINE void jq_set_callback(struct jq_handler *h, jq_callback callback);
+
+/*
+/// #### jq_append_buf
+///  Appends an input buffer which then can be parsed with
+/// `jq_parse` or `jq_parse_buf` function.
+/// ~~~
+/// void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
+/// ~~~
+///
+/// Parameter | Description
+/// ----------|----------------------------------------------------------------
+/// __h__     | Pointer to previously initialized `jq_handler`
+/// __src__   | Pointer to source buffer
+/// __sz__    | Size of source buffer in bytes
+///
+*/
+JQ_INLINE void jq_append_buf(struct jq_handler *h, jq_char *src, jq_size sz);
 
 /*
 /// #### jq_parse
@@ -327,6 +327,47 @@ JQ_API jq_bool jq_parse(struct jq_handler *h);
 ///
 */
 JQ_INLINE jq_bool jq_parse_buf(struct jq_handler *h, jq_char *src, jq_size sz);
+
+/*
+/// #### jq_get_tail
+/// Returns pointer to the latest part of input buffer, previously parsed with
+/// `jq_parse` or `jq_parse_buf`, which `jquick` was not able to process either
+/// because of an error or end of the input buffer. In both cases you can check
+/// the reason with `jq_get_error`. Together with `jq_get_tail_size` this function
+/// can be used to correct the error or prepare for the next call of `jq_parse`.
+/// It is implemented as a macro.
+/// ~~~
+/// jq_char *jq_get_tail(struct jq_handler *h)
+/// ~~~
+///
+/// Parameter | Description
+/// ----------|----------------------------------------------------------------
+/// __h__     | Pointer to previously initialized `jq_handler`
+///
+/// Returns pointer to unprocessed tail of the input buffer.
+///
+*/
+#define jq_get_tail(h) ((h)->buf + (h)->i)
+
+/*
+/// #### jq_get_tail_size
+/// Returns the size of the latest part of input buffer, previously parsed with
+/// `jq_parse` or `jq_parse_buf`, which `jquick` was not able to process.
+/// See `jq_get_tail` for more information.
+/// It is implemented as a macro.
+/// ~~~
+/// jq_size jq_get_tail_size(struct jq_handler *h)
+/// ~~~
+///
+/// Parameter | Description
+/// ----------|----------------------------------------------------------------
+/// __h__     | Pointer to previously initialized `jq_handler`
+///
+/// Returns the size of the latest part of input buffer, previously parsed with
+/// `jq_parse` or `jq_parse_buf`, which `jquick` was not able to process.
+///
+*/
+#define jq_get_tail_size(h) ((h)->buf_size - (h)->i)
 
 /*
 /// #### jq_get_error
