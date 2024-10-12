@@ -3,6 +3,10 @@ DIR = bin
 MKDIR = mkdir -p
 
 # Flags
+CFLAGS += -I..
+CXXFLAGS += -I..
+
+# Flags
 CFLAGS += -std=c99 -pedantic -O2
 
 SRC = test.c

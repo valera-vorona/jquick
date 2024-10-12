@@ -52,6 +52,10 @@ SOFTWARE.
 /// ~~~
 /// #include "jquick.h"
 /// ~~~
+///
+/// ## Example
+/// see examples here: ![](https://github.com/valera-vorona/jquick/tree/main/example)
+///
 */
 
 #ifndef __JQUICK_H__
@@ -513,7 +517,7 @@ jq_errstr(enum jq_error error) {
 
 /* Forward declarations */
 JQ_INLINE enum jq_token_type jq_finish_number(struct jq_handler *h);
-JQ_API enum jq_token_type jq_handle_lexer_error(struct jq_handler *h, size_t start_pos, enum jq_error error);
+JQ_API enum jq_token_type jq_handle_lexer_error(struct jq_handler *h, jq_size start_pos, enum jq_error error);
 
 #define jq_iswc(c) (JQ_STRCHR(" \n\r\t", c) != JQ_NULL)
 #define jq_isesc(c) (JQ_STRCHR("\"\\/bfnrt", c) != JQ_NULL)
@@ -587,7 +591,7 @@ jq_get_token(struct jq_handler *h) {
 
     int nft_cnt; /* current symbol inside null, true, false or unicode (\uxxxx) */
     enum jq_lexer_state lexer_state = JQ_L_NORMAL;
-    size_t start_pos = h->i; /* start position of the token */
+    jq_size start_pos = h->i; /* start position of the token */
 
     for (;;) {
         int c = jq_lexer_getchar(h);
@@ -815,8 +819,8 @@ jq_finish_number(struct jq_handler *h) {
 }
 
 JQ_API enum jq_token_type
-jq_handle_lexer_error(struct jq_handler *h, size_t start_pos, enum jq_error error) {
-    size_t n = h->i - start_pos;
+jq_handle_lexer_error(struct jq_handler *h, jq_size start_pos, enum jq_error error) {
+    jq_size n = h->i - start_pos;
     while (n--) jq_lexer_unget(h);
     jq_set_error(h, error);
     return JQ_T_ERROR;

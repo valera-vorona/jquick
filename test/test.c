@@ -1,7 +1,7 @@
 #include "quin.h"
 #define JQ_WITH_IMPLEMENTATION
 #define JQ_WITH_NULLTERM
-#include "../jquick.h"
+#include "jquick.h"
 #include <malloc.h>
 #include <string.h>
 
