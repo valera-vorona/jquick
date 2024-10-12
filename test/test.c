@@ -154,6 +154,9 @@ TEST_CASE(test_stream)
     TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
 TEST_CASE_END()
 
+#define jq_get_tail(h) ((h)->buf + (h)->i)
+#define jq_get_tail_size(h) ((h)->buf_size - (h)->i)
+
 /* Separating json into four parts, copying the parts into a separate array */
 TEST_CASE(test_stream_four_parts)
     struct jq_handler h;
@@ -186,15 +189,15 @@ TEST_CASE(test_stream_four_parts)
     jq_init(&h);
     /* Reading NUM parts */
     for (i = 0; i < NUM; ++i) {
-        size_t add = h.buf_size - h.i; /* add = block size which jq_parse() function
-                                          could not read */
+        char *tail = jq_get_tail(&h);
+        size_t tail_size = jq_get_tail_size(&h);
 
         /* Adding the previously unread memory block to the beginning of the new json part */
-        parts[i] = (char *)realloc(parts[i], sizes[i] + add);
-        memmove(parts[i] + add, parts[i], sizes[i]);
-        memcpy(parts[i], h.buf + h.i, add);
+        parts[i] = (char *)realloc(parts[i], sizes[i] + tail_size);
+        memmove(parts[i] + tail_size, parts[i], sizes[i]);
+        memcpy(parts[i], tail, tail_size);
 
-        r = jq_parse_buf(&h, parts[i], sizes[i] + add);
+        r = jq_parse_buf(&h, parts[i], sizes[i] + tail_size);
         if (i < NUM -1) {
             TEST_REQUIRE(r == JQ_FALSE);
             TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_LEXER_NEED_MORE);
