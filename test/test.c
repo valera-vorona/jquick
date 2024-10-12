@@ -34,6 +34,47 @@ char *read_json(const char *fname, size_t *rsz) {
     return rv;
 }
 
+char *read_json_part(const char *fname, size_t start, size_t sz) {
+    char *rv = NULL;
+    FILE *fp = fopen(fname, "r");
+
+    if (fp == NULL) {
+        perror("Error opening file");
+        return NULL;
+    }
+
+    fseek(fp, start, SEEK_SET);
+    rv = (char *)malloc(sz);
+    if (rv == NULL) {
+        perror("Error allocating memory");
+    } else {
+        if (fread(rv, sizeof(char), sz, fp) != sz) {
+            free(rv);
+            perror("Error reading file");
+        }
+    }
+
+    fclose(fp);
+
+    return rv;
+}
+
+size_t get_file_size(const char *fname) {
+    size_t sz;
+    FILE *fp = fopen(fname, "r");
+
+    if (fp == NULL) {
+        perror("Error opening file");
+        return 0;
+    }
+
+    fseek(fp, 0L, SEEK_END);
+    sz = ftell(fp);
+    fclose(fp);
+
+    return sz;
+}
+
 /* ==============================
  *
  * Test suite suite_basic
@@ -212,6 +253,49 @@ TEST_CASE(test_stream_four_parts)
     TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
 TEST_CASE_END()
 
+/* Reading and parsing json part by part sequentially */
+TEST_CASE(test_stream_sequential)
+    struct jq_handler h;
+    const char fname[] = "../assets/web-app.json";
+    jq_bool r;
+    size_t sz;
+    const int NUM = 4;
+    size_t sizes[] = { 1000, 128, 25, 0 };
+    char *part = NULL;
+    int i;
+    size_t cur = 0; /* Position in file */
+
+    sz = get_file_size("../assets/web-app.json");
+    sizes[3] = sz - sizes[0] - sizes[1] - sizes[2];
+
+    jq_init(&h);
+    /* Reading NUM parts */
+    for (i = 0; i < NUM; ++i) {
+        char *tail = jq_get_tail(&h);
+        size_t tail_size = jq_get_tail_size(&h);
+
+        /* Shifting the previously unread memory block (tail) to the beginning of the current part */
+        memcpy(part, tail, tail_size);
+        /* Reallocating the same block with the tail moved forward */
+        part = (char *)realloc(part, tail_size + sizes[i]);
+        /* Appending the new json part after the tail */
+        memcpy(part + tail_size, read_json_part(fname, cur, sizes[i]), sizes[i]);
+
+        r = jq_parse_buf(&h, part, tail_size + sizes[i]);
+        if (i < NUM -1) {
+            TEST_REQUIRE(r == JQ_FALSE);
+            TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_LEXER_NEED_MORE);
+        }
+
+        cur += sizes[i];
+    }
+
+    if (part) free(part);
+
+    TEST_REQUIRE(r == JQ_TRUE);
+    TEST_REQUIRE(jq_get_error(&h) == JQ_ERR_OK);
+TEST_CASE_END()
+
 /*
  * main suite_stream function
  */
@@ -219,6 +303,7 @@ TEST_CASE_END()
 TEST_SUITE(suite_streaming)
     TEST_CASE_RUN(test_stream);
     TEST_CASE_RUN(test_stream_four_parts);
+    TEST_CASE_RUN(test_stream_sequential);
 TEST_SUITE_END()
 
 /* ==============================
